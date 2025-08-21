@@ -2,9 +2,9 @@ name: Build and Deploy Text Analyzer
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "master", "dev"]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "master", "dev" ]
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
