@@ -1,0 +1,5 @@
+project_id       = "my-gcp-project-id"
+region           = "europe-west1"
+repo_id          = "text-analyzer"
+service_name     = "text-analyzer-api"
+# allowed_invoker = "serviceAccount:caller@my-gcp-project-id.iam.gserviceaccount.com"

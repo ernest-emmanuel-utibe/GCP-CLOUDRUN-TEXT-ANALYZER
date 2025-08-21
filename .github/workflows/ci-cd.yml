@@ -1,0 +1,64 @@
+name: build-and-deploy
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    env:
+      REGION: europe-west1
+      REPO_ID: text-analyzer
+      SERVICE_NAME: text-analyzer-api
+      TF_WORKING_DIR: terraform
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up gcloud auth (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Set up gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          version: ">= 472.0.0"
+
+      - name: Configure Artifact Registry Docker auth
+        run: gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
+
+      - name: Build image
+        run: |
+          PROJECT_ID="$(gcloud config get-value project)"
+          IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_ID}/text-analyzer:${GITHUB_SHA}"
+          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+          docker build -t "$IMAGE_URI" .
+
+      - name: Push image
+        run: docker push "$IMAGE_URI"
+
+      - name: Terraform init/validate/plan/apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          TF_VAR_image: ${{ env.IMAGE_URI }}
+        run: |
+          # Inject project into terraform via provider default or tfvars
+          PROJECT_ID="$(gcloud config get-value project)"
+          echo "project_id = \"${PROJECT_ID}\"" > auto.tfvars
+          echo "region     = \"${{ env.REGION }}\"" >> auto.tfvars
+          echo "repo_id    = \"${{ env.REPO_ID }}\"" >> auto.tfvars
+          echo "service_name = \"${{ env.SERVICE_NAME }}\"" >> auto.tfvars
+
+          terraform init -input=false
+          terraform validate
+          terraform plan -input=false -out=tfplan
+          terraform apply -input=false -auto-approve tfplan
