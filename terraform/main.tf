@@ -22,6 +22,22 @@ provider "google" {
   zone    = var.zone
 }
 
+variable "image" {}
+
+resource "google_cloud_run_service" "default" {
+  name     = "my-app"
+  location = "us-central1"
+
+  template {
+    spec {
+      containers {
+        image = var.image
+      }
+    }
+  }
+}
+
+
 # Enable required APIs
 resource "google_project_service" "apis" {
   for_each = toset([
