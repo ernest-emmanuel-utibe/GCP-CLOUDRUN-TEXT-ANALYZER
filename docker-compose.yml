@@ -1,0 +1,74 @@
+# Docker Compose configuration for local development
+version: '3.8'
+
+services:
+  # Text Analyzer API service
+  text-analyzer:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - ENVIRONMENT=development
+    volumes:
+      # Mount app directory for hot reloading during development
+      - ./app:/app
+      - /app/__pycache__  # Exclude pycache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - text-analyzer-network
+
+  # Development tools container (optional)
+  dev-tools:
+    image: python:3.11-slim
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    command: tail -f /dev/null  # Keep container running
+    environment:
+      - PYTHONPATH=/workspace/app
+    networks:
+      - text-analyzer-network
+    profiles:
+      - dev  # Only start with --profile dev
+
+  # Test runner container (optional)
+  test-runner:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    working_dir: /app
+    volumes:
+      - .:/workspace
+    command: >
+      bash -c "
+        cd /workspace &&
+        pip install pytest pytest-asyncio httpx flake8 &&
+        flake8 app/ --max-line-length=88 &&
+        python -m pytest tests/ -v
+      "
+    environment:
+      - PYTHONPATH=/workspace/app
+    networks:
+      - text-analyzer-network
+    profiles:
+      - test  # Only start with --profile test
+    depends_on:
+      - text-analyzer
+
+networks:
+  text-analyzer-network:
+    driver: bridge
+
+# Development volumes
+volumes:
+  app-cache:
+    driver: local

@@ -1,0 +1,121 @@
+# Google Cloud Build configuration for Text Analyzer
+# Alternative to GitHub Actions for users who prefer Google Cloud Build
+
+steps:
+  # Step 1: Run Python linting and tests
+  - name: 'python:3.11-slim'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        cd app
+        pip install -r requirements.txt
+        pip install flake8 pytest pytest-asyncio httpx
+        
+        # Lint Python code
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --max-complexity=10 --max-line-length=88 --statistics
+        
+        # Run tests
+        python -m pytest ../tests/ -v
+
+  # Step 2: Validate Terraform
+  - name: 'hashicorp/terraform:1.5'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        terraform fmt -check
+        terraform init -backend=false
+        terraform validate
+
+  # Step 3: Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$SHORT_SHA'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:latest'
+      - './app'
+
+  # Step 4: Push Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$SHORT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:latest'
+
+  # Step 5: Deploy with Terraform
+  - name: 'hashicorp/terraform:1.5'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        terraform init
+        terraform plan -var="project_id=$PROJECT_ID" -var="image_tag=$SHORT_SHA" -out=tfplan
+        terraform apply -auto-approve tfplan
+
+  # Step 6: Security scan (optional)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud artifacts docker images scan \
+          ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$SHORT_SHA \
+          --location=${_REGION} \
+          --format="table(package,version,severity,fixed_version)" || true
+
+  # Step 7: Verify deployment
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Wait for service to be ready
+        sleep 30
+        
+        # Get service URL
+        SERVICE_URL=$(gcloud run services describe ${_SERVICE} \
+          --region=${_REGION} \
+          --format='value(status.url)')
+        
+        echo "Service deployed at: $SERVICE_URL"
+        
+        # Verify service is running
+        gcloud run services describe ${_SERVICE} \
+          --region=${_REGION} \
+          --format="table(spec.template.spec.containers[].image,status.conditions[].type:label=CONDITION,status.conditions[].status:label=STATUS)"
+
+# Substitution variables
+substitutions:
+  _REGION: 'us-central1'
+  _SERVICE: 'text-analyzer'
+  _REPOSITORY: 'text-analyzer-repo'
+
+# Build configuration
+options:
+  # Use high-CPU machine for faster builds
+  machineType: 'E2_HIGHCPU_8'
+  
+  # Enable Docker layer caching
+  env:
+    - 'DOCKER_BUILDKIT=1'
+  
+  # Set logging options
+  logging: CLOUD_LOGGING_ONLY
+  
+  # Set timeout
+  timeout: '1200s'
+
+# Images to store in Container Registry
+images:
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$SHORT_SHA'
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:latest'
