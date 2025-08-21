@@ -113,7 +113,7 @@ options:
   logging: CLOUD_LOGGING_ONLY
   
   # Set timeout
-  timeout: '1200s'
+  # timeout: '1200s'
 
 # Images to store in Container Registry
 images:
