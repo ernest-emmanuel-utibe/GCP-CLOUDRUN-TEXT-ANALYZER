@@ -2,9 +2,9 @@ name: Build and Deploy Text Analyzer
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "master" ]
   pull_request:
-    branches: [ main ]
+    branches: [ "master" ]
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -191,7 +191,7 @@ jobs:
     - name: Tag as latest
       run: |
         docker tag $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/text-analyzer-repo/text-analyzer:$GITHUB_SHA \
-                $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/text-analyzer-repo/text-analyzer:latest
+                  $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/text-analyzer-repo/text-analyzer:latest
         docker push $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/text-analyzer-repo/text-analyzer:latest
 
   deploy:
