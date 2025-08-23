@@ -131,7 +131,7 @@ gcloud iam service-accounts keys create terraform-key.json \
 
 ```bash
 # Clone repository
-git clone https://github.com/your-username/cloud-text-analyzer.git
+git clone https://github.com/your-username/GCP-CLOUDRUN-TEXT-ANALYZER.git
 cd cloud-text-analyzer
 
 # Copy Terraform variables
@@ -143,13 +143,11 @@ vim terraform/terraform.tfvars
 
 ### 4. GitHub Secrets Configuration
 
-Add these secrets to your GitHub repository (Settings → Secrets → Actions):
-
 - `GCP_PROJECT_ID`: Your GCP project ID
 - `GCP_SA_KEY`: Content of `terraform-key.json` file
 - `TF_API_TOKEN`: Terraform Cloud API token (if using remote state)
 
-### 5. Manual Deployment (Optional)
+### 5. Manual Deployment
 
 ```bash
 # Initialize Terraform
@@ -320,7 +318,7 @@ terraform apply -auto-approve
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License.
 
 ## Support
 
